@@ -15,8 +15,8 @@ if __name__ == "__main__":
     # Conta quantas vezes cada classe aparece
     counts = pd.Series(y).value_counts()
 
-    # Filtra apenas classes com pelo menos 2 instâncias
-    valid_classes = counts[counts >= 2].index
+    # Filtra apenas classes com pelo menos 5 instâncias
+    valid_classes = counts[counts >= 5].index
     mask = pd.Series(y).isin(valid_classes)
 
     X = X[mask]
