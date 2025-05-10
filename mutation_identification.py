@@ -1,10 +1,10 @@
 from Bio import SeqIO
 import pandas as pd
 
+# Configurações
 path = "mafft_alinhado_auto/"
 ref_seq = str(SeqIO.read(path+"wuhan_reference_aligned.fasta", "fasta").seq)
 
-# Função para extrair mutações comparando com a referência
 def extrai_mutacoes(seq, ref_seq):
     mutations = []
     
@@ -13,6 +13,11 @@ def extrai_mutacoes(seq, ref_seq):
             mutations.append((i, ref_base, base))
     
     return mutations
+
+def salvar_mutacoes(df_mutations):
+    output_file="mutacoes.csv"
+    df_mutations.to_csv(output_file, index=False)
+    print(f"Mutações salvas em '{output_file}'.")
 
 # Função para processar as sequências alinhadas e gerar um DataFrame com as mutações
 def processar_sequencias(aligned_file):
@@ -37,11 +42,6 @@ def processar_sequencias(aligned_file):
     df_mutations = pd.DataFrame(mutation_data)
     return df_mutations
 
-# Salvar as mutações em um arquivo CSV para fácil análise posterior
-def salvar_mutacoes(df_mutations, output_file="mutacoes.csv"):
-    df_mutations.to_csv(output_file, index=False)
-    print(f"Mutações salvas em '{output_file}'.")
-
 def main():
     df_all_mutations = pd.DataFrame()
 
@@ -54,5 +54,4 @@ def main():
 
     salvar_mutacoes(df_all_mutations)
 
-if __name__ == "__main__":
-    main()
+main()
