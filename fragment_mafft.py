@@ -5,14 +5,13 @@ from concurrent.futures import ProcessPoolExecutor
 
 # Configurações
 input_fasta = "sars_cov2_sequences.fasta"
-ref_fasta = "wuhan_reference.fasta"  # Sequência base
+ref_fasta = "wuhan_reference.fasta"
 output_dir = "mafft_alinhado_auto"
-block_size = 100  # Tamanho do bloco
-n_threads = 12    # Número de processos paralelos (ajuste conforme seu CPU)
+block_size = 100
+n_threads = 12    # Número de processos paralelos
 
 os.makedirs(output_dir, exist_ok=True)
 
-# Carrega todas as sequências
 all_sequences = list(SeqIO.parse(input_fasta, "fasta"))
 print(f"Total de sequências carregadas: {len(all_sequences)}")
 
@@ -34,9 +33,9 @@ def align_block_auto(block_index):
             "mafft", "--auto", "--thread", "4", block_file
         ], stdout=open(aligned_file, "w"), stderr=subprocess.DEVNULL, check=True)
 
-        print(f"✅ Bloco {block_index + 1} alinhado com sucesso.")
+        print(f"Bloco {block_index + 1} alinhado com sucesso.")
     except subprocess.CalledProcessError:
-        print(f"❌ Erro no alinhamento do bloco {block_index + 1}.")
+        print(f"Erro no alinhamento do bloco {block_index + 1}.")
 
 # Dispara os processos paralelos
 def main():
@@ -46,7 +45,7 @@ def main():
     with ProcessPoolExecutor(max_workers=n_threads) as executor:
         executor.map(align_block_auto, range(num_blocks))
 
-    print("\n✅ Alinhamento finalizado.")
+    print("\nAlinhamento finalizado.")
 
 if __name__ == "__main__":
     main()
