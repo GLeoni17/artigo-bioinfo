@@ -81,7 +81,7 @@ def salva_arquivo(sequences, output_file="sars_cov2_sequences.fasta"):
 
 
 # Salva os metadados em .csv
-def salva_metadados_csv(metadados, output_file="metadados_test.csv"):
+def salva_metadados_csv(metadados, output_file="metadados.csv"):
     if not metadados:
         print("Nenhum metadado a salvar.")
         return

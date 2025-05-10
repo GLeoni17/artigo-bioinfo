@@ -11,6 +11,7 @@ OUTPUT_X = "X_features.csv"
 OUTPUT_Y = "y_labels.csv"
 ROTULO = "pais"  # ou "lineage" se houver
 
+
 # Função: Selecionar top posições informativas e gerar X
 def selecionar_top_posicoes(path_mutacoes, top_n=500, freq_min=0.1, freq_max=0.9):
     df = pd.read_csv(path_mutacoes)
@@ -28,6 +29,7 @@ def selecionar_top_posicoes(path_mutacoes, top_n=500, freq_min=0.1, freq_max=0.9
     df_bin.columns = [f"pos_{col}" for col in df_bin.columns]
     return df_bin
 
+
 # Função: Carrega y com base nos metadados
 def carregar_rotulos(path_metadados, rotulo_col="pais"):
     df_meta = pd.read_csv(path_metadados)
@@ -35,11 +37,13 @@ def carregar_rotulos(path_metadados, rotulo_col="pais"):
     df_meta = df_meta.set_index("seq_id")
     return df_meta
 
+
 # Função: Codifica rótulos
 def codificar_rotulos(y_series):
     encoder = LabelEncoder()
     y_encoded = encoder.fit_transform(y_series)
     return pd.DataFrame(y_encoded, columns=["classe"])
+
 
 # Execução principal
 def main():
@@ -62,6 +66,7 @@ def main():
     X.to_csv(OUTPUT_X, index=False)
     y_encoded.to_csv(OUTPUT_Y, index=False)
     print(f"✅ X salvo em {OUTPUT_X}, y salvo em {OUTPUT_Y}.")
+
 
 if __name__ == "__main__":
     main()
