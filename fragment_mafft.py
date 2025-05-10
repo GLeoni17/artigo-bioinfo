@@ -3,25 +3,25 @@ import os, subprocess
 from concurrent.futures import ProcessPoolExecutor
 
 # Configurações
-input_fasta = "sars_cov2_sequences.fasta"
-ref_fasta = "wuhan_reference.fasta"
-output_dir = "mafft_alinhado_auto"
-block_size = 100
-n_threads = 12
-os.makedirs(output_dir, exist_ok=True)
+INPUT_FASTA = "sars_cov2_sequences.fasta"
+REF_FASTA = "wuhan_reference.fasta"
+OUTPUT_DIR = "mafft_alinhado_auto"
+BLOCK_SIZE = 100
+N_THREADS = 12
 
-all_sequences = list(SeqIO.parse(input_fasta, "fasta"))
+ALL_SEQUENCES = list(SeqIO.parse(INPUT_FASTA, "fasta"))
+
 
 def align_block_auto(block_index):
-    block_file = f"{output_dir}/block_{block_index}.fasta"
-    aligned_file = f"{output_dir}/aligned_{block_index}.fasta"
+    block_file = f"{OUTPUT_DIR}/block_{block_index}.fasta"
+    aligned_file = f"{OUTPUT_DIR}/aligned_{block_index}.fasta"
 
-    start = block_index * block_size
-    end = min(start + block_size, len(all_sequences))
-    block_seqs = all_sequences[start:end]
+    start = block_index * BLOCK_SIZE
+    end = min(start + BLOCK_SIZE, len(ALL_SEQUENCES))
+    block_seqs = ALL_SEQUENCES[start:end]
 
     # Combina a referência com o bloco
-    all_block_seqs = list(SeqIO.parse(ref_fasta, "fasta")) + block_seqs
+    all_block_seqs = list(SeqIO.parse(REF_FASTA, "fasta")) + block_seqs
     SeqIO.write(all_block_seqs, block_file, "fasta")
 
     try:
@@ -33,10 +33,15 @@ def align_block_auto(block_index):
     except subprocess.CalledProcessError:
         print(f"Erro no alinhamento do bloco {block_index + 1}.")
 
-def main():
-    num_blocks = (len(all_sequences) + block_size - 1) // block_size
 
-    with ProcessPoolExecutor(max_workers=n_threads) as executor:
+def main():
+    os.makedirs(OUTPUT_DIR, exist_ok=True)
+
+    num_blocks = (len(ALL_SEQUENCES) + BLOCK_SIZE - 1) // BLOCK_SIZE
+
+    with ProcessPoolExecutor(max_workers=N_THREADS) as executor:
         executor.map(align_block_auto, range(num_blocks))
 
-main()
+
+if __name__ == "__main__":
+    main()
