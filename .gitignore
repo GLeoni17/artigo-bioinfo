@@ -1,2 +1,5 @@
 .idea
 *.fasta
+.venv
+./mafft_alinhado_auto
+*.csv

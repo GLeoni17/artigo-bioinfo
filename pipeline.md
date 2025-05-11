@@ -6,7 +6,7 @@
 
 ```padroniza_paises.py``` (padroniza os metadados para conterem apenas nomes de países, não estados ou cidades)
 
-```mutation_indentification.py``` (compara variantes com a referência e salva as mutações)
+```mutation_identification.py``` (compara variantes com a referência e salva as mutações)
 
 ```extrair_features.py``` (extrai features com base nos metadados e informações de mutações)
 

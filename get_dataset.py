@@ -19,7 +19,7 @@ def salva_arquivo(sequences):
 
 # Salva os metadados em .csv
 def salva_metadados_csv(metadados, ):
-    output_file = "metadados_test.csv"
+    output_file = "metadados.csv"
     keys = metadados[0].keys()
 
     with open(output_file, "w", newline="") as csvfile:

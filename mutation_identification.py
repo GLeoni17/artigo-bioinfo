@@ -59,4 +59,5 @@ def main():
     salvar_mutacoes(df_all_mutations)
 
 
-main()
+if __name__ == "__main__":
+    main()
