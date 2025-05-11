@@ -50,7 +50,7 @@ def processar_sequencias(aligned_file):
 def processar_e_retornar(i):
     aligned_file = f"aligned_{i}.fasta"
     mutations = processar_sequencias(aligned_file)
-    print(f"Mutações da sequência {i+1} processadas.")
+    print(f"Mutações da sequência {i} processadas.")
     return mutations
 
 
