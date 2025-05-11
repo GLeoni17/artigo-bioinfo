@@ -1,28 +1,26 @@
 #!/bin/bash
 
-ENV_DIR=".venv"
-REQ_FILE="requirements.txt"
+ENV_NAME="meu_ambiente"
+ENV_FILE="environment.yml"
 
-# Verifica se o ambiente virtual existe
-if [ ! -d "$ENV_DIR" ]; then
-    echo "Ambiente virtual não encontrado. Criando..."
-    python3 -m venv "$ENV_DIR"
+# Verifica se o ambiente Conda existe
+if ! conda info --envs | grep -q "$ENV_NAME"; then
+    echo "Ambiente Conda '$ENV_NAME' não encontrado. Criando a partir de $ENV_FILE..."
 
-    echo "Ativando ambiente virtual..."
-    source "$ENV_DIR/bin/activate"
-
-    if [ -f "$REQ_FILE" ]; then
-        echo "Instalando dependências de $REQ_FILE..."
-        pip install --upgrade pip
-        pip install -r "$REQ_FILE"
+    if [ -f "$ENV_FILE" ]; then
+        conda env create -f "$ENV_FILE"
     else
-        echo "Arquivo $REQ_FILE não encontrado! Abortando."
+        echo "Arquivo $ENV_FILE não encontrado! Abortando."
         exit 1
     fi
 else
-    echo "Ambiente virtual encontrado. Ativando..."
-    source "$ENV_DIR/bin/activate"
+    echo "Ambiente Conda '$ENV_NAME' encontrado. Atualizando pacotes..."
+    conda env update --file $ENV_FILE --prune
 fi
+
+echo "Ativando ambiente Conda..."
+source "$(conda info --base)/etc/profile.d/conda.sh"
+conda activate "$ENV_NAME"
 
 # Etapas do pipeline
 echo "Etapa 1: Baixando sequência básica e variações..."
