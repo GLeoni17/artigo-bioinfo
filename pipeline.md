@@ -1,10 +1,8 @@
-```get_dataset.py``` (baixa a sequência básica e as variações)
+```get_dataset.py``` (baixa a sequência básica e as variantes)
 
 ```fragment_mafft.py``` (faz o alinhamento de cada uma das variantes com a referência, com MAFFT)
 
-```lineage_metadata.py``` (busca metadados de linhagem para as variantes)
-
-```padroniza_paises.py``` (padroniza os metadados para conterem apenas nomes de países, não estados ou cidades)
+```padroniza_paises.py``` (padroniza os metadados)
 
 ```mutation_identification.py``` (compara variantes com a referência e salva as mutações)
 
