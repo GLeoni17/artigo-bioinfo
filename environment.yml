@@ -24,3 +24,4 @@ dependencies:
   - threadpoolctl=3.6.0
   - tzdata
   - mafft
+  - tqdm
