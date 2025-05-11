@@ -25,13 +25,14 @@ def align_block_auto(block_index):
     SeqIO.write(all_block_seqs, block_file, "fasta")
 
     try:
-        subprocess.run([
-            "mafft", "--auto", "--thread", "4", block_file
-        ], stdout=open(aligned_file, "w"), stderr=subprocess.DEVNULL, check=True)
+        with open(aligned_file, "w") as out_f:
+            subprocess.run([
+                "mafft", "--auto", "--thread", "4", block_file
+            ], stdout=out_f, stderr=subprocess.DEVNULL, check=True)
 
-        print(f"Bloco {block_index + 1} alinhado com sucesso.")
+        print(f"Bloco {block_index} alinhado com sucesso.")
     except subprocess.CalledProcessError:
-        print(f"Erro no alinhamento do bloco {block_index + 1}.")
+        print(f"Erro no alinhamento do bloco {block_index}.")
 
 
 def main():

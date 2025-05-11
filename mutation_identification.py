@@ -3,7 +3,7 @@ import pandas as pd
 
 # Configurações
 PATH = "mafft_alinhado_auto/"
-REF_SEQ = str(SeqIO.read(PATH + "wuhan_reference_aligned.fasta", "fasta").seq)
+REF_SEQ = str(SeqIO.read("wuhan_reference.fasta", "fasta").seq)
 
 
 def extrai_mutacoes(seq, ref_seq):
