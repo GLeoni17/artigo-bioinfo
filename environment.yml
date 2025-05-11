@@ -1,7 +1,7 @@
-name: meu_ambiente
+name: bioinfo
 channels:
-  - conda-forge
-  - defaults
+  - https://repo.anaconda.com/pkgs/main
+  - https://repo.anaconda.com/pkgs/r
 dependencies:
   - python=3.10
   - biopython=1.85
@@ -19,7 +19,8 @@ dependencies:
   - python-dateutil=2.9.0.post0
   - pytz=2025.2
   - scikit-learn=1.6.1
-  - scipy>=1.11
+  - scipy[version='>=1.11']
   - six=1.17.0
   - threadpoolctl=3.6.0
   - tzdata
+  - mafft
