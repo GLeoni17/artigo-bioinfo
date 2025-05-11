@@ -1,9 +1,9 @@
 #!/bin/bash
 
+# Ambiente virtual para execução ---------------------------------------------------------------------------------------
 ENV_NAME="meu_ambiente"
 ENV_FILE="environment.yml"
 
-# Verifica se o ambiente Conda existe
 if ! conda info --envs | grep -q "$ENV_NAME"; then
     echo "Ambiente Conda '$ENV_NAME' não encontrado. Criando a partir de $ENV_FILE..."
 
@@ -22,23 +22,23 @@ echo "Ativando ambiente Conda..."
 source "$(conda info --base)/etc/profile.d/conda.sh"
 conda activate "$ENV_NAME"
 
-# Etapas do pipeline
-echo "Etapa 1: Baixando sequência básica e variações..."
+# Etapas do pipeline ---------------------------------------------------------------------------------------------------
+printf "\nEtapa 1: Baixando sequência básica e variações..."
 python get_dataset.py
 
-echo "Etapa 2: Alinhando variantes com referência usando MAFFT..."
+printf "\nEtapa 2: Alinhando variantes com referência usando MAFFT..."
 python fragment_mafft.py
 
-echo "Etapa 3: Padronizando nomes de países nos metadados..."
+printf "\nEtapa 3: Padronizando nomes de países nos metadados..."
 python padroniza_paises.py
 
-echo "Etapa 4: Identificando mutações nas variantes..."
+printf "\nEtapa 4: Identificando mutações nas variantes..."
 python mutation_identification.py
 
-echo "Etapa 5: Extraindo features a partir de metadados e mutações..."
+printf "\nEtapa 5: Extraindo features a partir de metadados e mutações..."
 python extrair_features.py
 
-echo "Etapa 6: Aplicando e avaliando modelos de IA..."
+printf "\nEtapa 6: Aplicando e avaliando modelos de IA..."
 python aplicar_modelos.py
 
-echo "Pipeline finalizado com sucesso."
+printf "\nPipeline finalizado com sucesso."
