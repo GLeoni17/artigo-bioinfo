@@ -28,8 +28,8 @@ if __name__ == "__main__":
     )
 
     # 3. Treina e avalia modelos
-    aplicar_random_forest(X_train, y_train, X_test, y_test, n_estimators=1000)
+    aplicar_random_forest(X_train, y_train, X_test, y_test)
 
-    aplicar_knn(X_train, y_train, X_test, y_test, n_neighbors=50)
+    aplicar_knn(X_train, y_train, X_test, y_test)
 
     aplicar_svm(X_train, y_train, X_test, y_test)

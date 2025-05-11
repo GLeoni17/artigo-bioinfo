@@ -2,10 +2,30 @@ import os
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.svm import SVC
-from sklearn.metrics import classification_report, ConfusionMatrixDisplay
+from sklearn.metrics import classification_report, ConfusionMatrixDisplay, make_scorer, f1_score
 import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
+from contextlib import contextmanager
+from joblib import parallel_backend
+from tqdm import tqdm
+import joblib
+
+
+@contextmanager
+def tqdm_joblib(tqdm_object):
+    class TqdmBatchCompletionCallback(joblib.parallel.BatchCompletionCallBack):
+        def __call__(self, *args, **kwargs):
+            tqdm_object.update(n=self.batch_size)
+            return super().__call__(*args, **kwargs)
+
+    old_callback = joblib.parallel.BatchCompletionCallBack
+    joblib.parallel.BatchCompletionCallBack = TqdmBatchCompletionCallback
+    try:
+        yield
+    finally:
+        joblib.parallel.BatchCompletionCallBack = old_callback
+        tqdm_object.close()
 
 
 def gerar_relatorios(y_test, predictions):
@@ -67,12 +87,31 @@ def salvar_matriz_confusao(y_test, predictions, y_labels, model_name):
     plt.close()
 
 
-def aplicar_modelo(model, X_train, y_train, X_test, y_test):
-    model_name = model.__class__.__name__
+def aplicar_modelo(model_class, param_grid, X_train, y_train, X_test, y_test):
+    model_name = model_class.__name__
     os.makedirs("./metrics", exist_ok=True)
 
-    model.fit(X_train, y_train)
-    predictions = model.predict(X_test)
+    print(f"Iniciando GridSearchCV para {model_name}...")
+
+    # Busca pelo melhor modelo com base no F1-score macro
+    grid_search = GridSearchCV(
+        estimator=model_class(),
+        param_grid=param_grid,
+        scoring=make_scorer(f1_score, average='macro'),
+        cv=5,
+        n_jobs=-1
+    )
+
+    total_comb = len(ParameterGrid(param_grid))
+    with tqdm_joblib(tqdm(desc=f"GridSearch {model_name}", total=total_comb)) as _:
+        with parallel_backend('loky'):
+            grid_search.fit(X_train, y_train)
+
+    best_model = grid_search.best_estimator_
+
+    print(f"Melhores parâmetros para {model_name}: {grid_search.best_params_}")
+
+    predictions = best_model.predict(X_test)
 
     # Gerar relatórios
     report_full, metricas_classes, metricas_globais = gerar_relatorios(y_test, predictions)
@@ -90,27 +129,38 @@ def aplicar_modelo(model, X_train, y_train, X_test, y_test):
     # Salvar matriz de confusão
     salvar_matriz_confusao(y_test, predictions, y_train, model_name)
 
-    return report_full, predictions
+    return report_full, predictions, grid_search.best_params_
 
 
-def aplicar_random_forest(X_train, y_train, X_test, y_test, n_estimators=500):
-    model = RandomForestClassifier(n_estimators=n_estimators, random_state=42)
-    return aplicar_modelo(model, X_train, y_train, X_test, y_test)
+def aplicar_random_forest(X_train, y_train, X_test, y_test):
+    param_grid = {
+        'n_estimators': [100, 300, 500],
+        'max_depth': [None, 10, 20],
+        'min_samples_split': [2, 5]
+    }
+    return aplicar_modelo(RandomForestClassifier, param_grid, X_train, y_train, X_test, y_test)
 
 
-def aplicar_knn(X_train, y_train, X_test, y_test, n_neighbors=10):
-    model = KNeighborsClassifier(n_neighbors=n_neighbors)
-    return aplicar_modelo(model, X_train, y_train, X_test, y_test)
+def aplicar_knn(X_train, y_train, X_test, y_test):
+    param_grid = {
+        'n_neighbors': [3, 5, 10],
+        'weights': ['uniform', 'distance']
+    }
+    return aplicar_modelo(KNeighborsClassifier, param_grid, X_train, y_train, X_test, y_test)
 
 
-def aplicar_svm(X_train, y_train, X_test, y_test, kernel='poly'):
-    model = SVC(kernel=kernel)
-    return aplicar_modelo(model, X_train, y_train, X_test, y_test)
+def aplicar_svm(X_train, y_train, X_test, y_test):
+    param_grid = {
+        'kernel': ['linear', 'poly', 'rbf'],
+        'C': [0.1, 1, 10],
+        'degree': [2, 3, 5]  # Apenas afeta kernel='poly'
+    }
+    return aplicar_modelo(SVC, param_grid, X_train, y_train, X_test, y_test)
 
 
 # teste do funcionamento
 if __name__ == '__main__':
-    from sklearn.model_selection import train_test_split
+    from sklearn.model_selection import train_test_split, GridSearchCV, ParameterGrid
     from sklearn.datasets import load_iris
 
     ds_iris = load_iris()
