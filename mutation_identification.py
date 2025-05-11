@@ -1,5 +1,6 @@
 from Bio import SeqIO
 import pandas as pd
+from joblib import Parallel, delayed
 
 # Configurações
 PATH = "mafft_alinhado_auto/"
@@ -46,16 +47,16 @@ def processar_sequencias(aligned_file):
     return df_mutations
 
 
+def processar_e_retornar(i):
+    aligned_file = f"aligned_{i}.fasta"
+    mutations = processar_sequencias(aligned_file)
+    print(f"Mutações da sequência {i+1} processadas.")
+    return mutations
+
+
 def main():
-    df_all_mutations = pd.DataFrame()
-
-    # Processar os 200 blocos de sequências alinhadas
-    for i in range(0, 200):
-        aligned_file = f"aligned_{i}.fasta"
-        df_mutations = processar_sequencias(aligned_file)
-
-        df_all_mutations = pd.concat([df_all_mutations, df_mutations], ignore_index=True)
-
+    resultados = Parallel(n_jobs=-2)(delayed(processar_e_retornar)(i) for i in range(200))
+    df_all_mutations = pd.concat(resultados, ignore_index=True)
     salvar_mutacoes(df_all_mutations)
 
 
