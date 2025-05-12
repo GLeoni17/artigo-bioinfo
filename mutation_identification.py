@@ -28,7 +28,7 @@ def processar_sequencias(aligned_file):
     for record in aligned_seqs:
         if record.id == "Wuhan-Hu-1":
             continue
-        mutations = extrai_mutacoes(str(record.seq), REF_SEQ)
+        mutations = extrai_mutacoes(str(record.seq).upper(), REF_SEQ.upper())
         for mutation in mutations:
             mutation_data.append({
                 "seq_id": record.id,
