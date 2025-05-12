@@ -6,10 +6,11 @@ from concurrent.futures import ProcessPoolExecutor
 INPUT_FASTA = "sars_cov2_sequences.fasta"
 REF_FASTA = "wuhan_reference.fasta"
 OUTPUT_DIR = "mafft_alinhado_auto"
-BLOCK_SIZE = 100
+BLOCK_SIZE = 50
 N_THREADS = 12
 
 ALL_SEQUENCES = list(SeqIO.parse(INPUT_FASTA, "fasta"))
+REF_SEQ = list(SeqIO.parse(REF_FASTA, "fasta"))
 
 
 def align_block_auto(block_index):
@@ -21,7 +22,7 @@ def align_block_auto(block_index):
     block_seqs = ALL_SEQUENCES[start:end]
 
     # Combina a referência com o bloco
-    all_block_seqs = list(SeqIO.parse(REF_FASTA, "fasta")) + block_seqs
+    all_block_seqs = REF_SEQ + block_seqs
     SeqIO.write(all_block_seqs, block_file, "fasta")
 
     try:
@@ -30,9 +31,11 @@ def align_block_auto(block_index):
                 "mafft", "--auto", "--thread", "4", block_file
             ], stdout=out_f, stderr=subprocess.DEVNULL, check=True)
 
-        print(f"Bloco {block_index} alinhado com sucesso.")
+        print(f"[OK] Bloco {block_index} alinhado.")
     except subprocess.CalledProcessError:
-        print(f"Erro no alinhamento do bloco {block_index}.")
+        print(f"[ERRO] Falha no alinhamento do bloco {block_index}.")
+    finally:
+        os.remove(block_file)
 
 
 def main():

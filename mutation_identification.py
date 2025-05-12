@@ -1,10 +1,14 @@
+from multiprocessing import Manager, Lock
 from Bio import SeqIO
 import pandas as pd
 from joblib import Parallel, delayed
+import os
 
 # Configurações
+OUTPUT_FILE = "mutacoes.csv"
 PATH = "mafft_alinhado_auto/"
 REF_SEQ = str(SeqIO.read("wuhan_reference.fasta", "fasta").seq)
+CHUNK_SIZE = 250_000
 
 
 def extrai_mutacoes(seq, ref_seq):
@@ -17,16 +21,13 @@ def extrai_mutacoes(seq, ref_seq):
     return mutations
 
 
-def salvar_mutacoes(df_mutations):
-    output_file = "mutacoes.csv"
-    df_mutations.to_csv(output_file, index=False)
-    print(f"Mutações salvas em '{output_file}'.")
-
-
 # Função para processar as sequências alinhadas e gerar um DataFrame com as mutações
 def processar_sequencias(aligned_file):
-    aligned_seqs = list(SeqIO.parse(PATH + aligned_file, "fasta"))
+    filepath = os.path.join(PATH, aligned_file)
+    if not os.path.exists(filepath):
+        raise FileNotFoundError(f"Arquivo não encontrado: {filepath}")
 
+    aligned_seqs = list(SeqIO.parse(filepath, "fasta"))
     mutation_data = []
 
     for record in aligned_seqs:
@@ -43,21 +44,58 @@ def processar_sequencias(aligned_file):
                 "mut_base": mutation[2]
             })
 
-    df_mutations = pd.DataFrame(mutation_data)
-    return df_mutations
+    return pd.DataFrame(mutation_data)
 
 
-def processar_e_retornar(i):
+def processar_e_salvar(i, lock, primeira_escrita):
     aligned_file = f"aligned_{i}.fasta"
-    mutations = processar_sequencias(aligned_file)
-    print(f"Mutações da sequência {i} processadas.")
-    return mutations
+
+    try:
+        df = processar_sequencias(aligned_file)
+        if df.empty:
+            return
+
+        for j in range(0, len(df), CHUNK_SIZE):
+            chunk = df.iloc[j:j + CHUNK_SIZE]
+
+            with lock:
+                header = False
+                if primeira_escrita["value"]:
+                    header = True
+                    primeira_escrita["value"] = False
+
+                chunk.to_csv(OUTPUT_FILE, mode='a', index=False, header=header)
+
+        print(f"[OK] {aligned_file} processado e salvo.")
+    except Exception as e:
+        print(f"[ERRO] Falha ao processar {aligned_file}: {e}")
 
 
 def main():
-    resultados = Parallel(n_jobs=-2)(delayed(processar_e_retornar)(i) for i in range(200))
-    df_all_mutations = pd.concat(resultados, ignore_index=True)
-    salvar_mutacoes(df_all_mutations)
+    if os.path.exists(OUTPUT_FILE):
+        os.remove(OUTPUT_FILE)
+
+    manager = Manager()
+    lock = Lock()
+    primeira_escrita = manager.dict()
+    primeira_escrita["value"] = True
+
+    arquivos_indices = [
+        int(f.split('_')[1].split('.')[0])  # extrai índice do nome
+        for f in os.listdir(PATH)
+        if f.startswith("aligned_") and f.endswith(".fasta")
+    ]
+    max_idx = max(arquivos_indices, default=-1)
+    if max_idx < 0:
+        print("Nenhum arquivo 'aligned_*.fasta' encontrado.")
+        return
+
+    Parallel(n_jobs=-2)(
+        delayed(processar_e_salvar)(i, lock, primeira_escrita)
+        for i in range(max_idx + 1)
+    )
+
+    print(f"Mutações salvas em '{OUTPUT_FILE}'.")
 
 
 if __name__ == "__main__":
