@@ -103,6 +103,7 @@ def matriz_crosstab(posicoes_selecionadas):
         chunk_file = os.path.join(temp_chunk_dir, f"chunk_{i}.csv")
         chunk.to_csv(chunk_file, index=False)
         chunk_paths.append((chunk_file, posicoes_selecionadas, i))
+
     print(f"Iniciando processamento paralelo de {len(chunk_paths)} chunks...")
     with ProcessPoolExecutor() as executor:
         result_files = list(executor.map(processar_chunk, chunk_paths))
@@ -110,6 +111,7 @@ def matriz_crosstab(posicoes_selecionadas):
     if not arquivos:
         print("[ERRO] Nenhum arquivo válido gerado.")
         sys.exit(1)
+
     print("Consolidando crosstabs em memória...")
     all_parts = [pd.read_csv(f).set_index("seq_id") for f in arquivos]
     df_bin = pd.concat(all_parts, axis=0).groupby(level=0).sum()
@@ -124,7 +126,7 @@ def carregar_labels():
         df_meta = pd.read_csv(METADADOS_CSV)
         df_meta = df_meta[["seq_id", LABEL]].dropna()
         df_meta = df_meta.set_index("seq_id")
-        print(f"[INFO] Labels disponíveis: {df_meta[LABEL].nunique()} classes.")
+        print(f"Labels disponíveis: {df_meta[LABEL].nunique()} classes.")
         return df_meta
     except Exception as e:
         print(f"[ERRO] Falha ao carregar '{METADADOS_CSV}': {e}")
@@ -135,7 +137,7 @@ def carregar_labels():
 def codificar_labels(y_series):
     encoder = LabelEncoder()
     y_encoded = encoder.fit_transform(y_series)
-    print(f"[INFO] Rótulos codificados em {len(set(y_encoded))} classes.")
+    print(f"Rótulos codificados em {len(set(y_encoded))} classes.")
     return pd.DataFrame(y_encoded, columns=["classe"])
 
 
@@ -158,9 +160,9 @@ def main():
 
     y_encoded = codificar_labels(y)
 
-    print(f"[SALVANDO] Salvando X em '{OUTPUT_X}'...")
+    print(f"Salvando X em '{OUTPUT_X}'...")
     X.to_csv(OUTPUT_X, index=False)
-    print(f"[SALVANDO] Salvando y em '{OUTPUT_Y}'...")
+    print(f"Salvando y em '{OUTPUT_Y}'...")
     y_encoded.to_csv(OUTPUT_Y, index=False)
 
 
