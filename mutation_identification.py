@@ -1,4 +1,5 @@
-from multiprocessing import Manager, Lock, Pool
+import random
+from multiprocessing import Pool, cpu_count
 from Bio import SeqIO
 import pandas as pd
 import os
@@ -6,42 +7,27 @@ import os
 # Configurações
 OUTPUT_FILE = "mutacoes.csv"
 PATH = "mafft_alinhado_auto/"
+TMP_DIR = "mutacoes_tmp/"
 REF_SEQ = str(SeqIO.read("wuhan_reference.fasta", "fasta").seq)
-CHUNK_SIZE = 250_000
-
-lock = None
-primeira_escrita_flag = None
-
-
-def init_worker(l, flag):
-    global lock, primeira_escrita_flag
-    lock = l
-    primeira_escrita_flag = flag
+MAX_OUTPUT_SIZE = 4 * 1024**3
 
 
 def extrai_mutacoes(seq, ref_seq):
     mutations = []
-
     for i, (ref_base, base) in enumerate(zip(ref_seq, seq)):
         if ref_base != base:
             mutations.append((i, ref_base, base))
-
     return mutations
 
 
-# Função para processar as sequências alinhadas e gerar um DataFrame com as mutações
 def processar_sequencias(aligned_file):
     filepath = os.path.join(PATH, aligned_file)
-    if not os.path.exists(filepath):
-        raise FileNotFoundError(f"Arquivo não encontrado: {filepath}")
-
     aligned_seqs = list(SeqIO.parse(filepath, "fasta"))
     mutation_data = []
 
     for record in aligned_seqs:
-        if record.id == "Wuhan-Hu-1":  # Pular a referência Wuhan-Hu-1
+        if record.id == "Wuhan-Hu-1":
             continue
-
         mutations = extrai_mutacoes(str(record.seq), REF_SEQ)
         for mutation in mutations:
             mutation_data.append({
@@ -56,48 +42,76 @@ def processar_sequencias(aligned_file):
 
 def processar_e_salvar(i):
     aligned_file = f"aligned_{i}.fasta"
-
     try:
-        df_mutations = processar_sequencias(aligned_file)
-        if not df_mutations.empty:
-            for j in range(0, len(df_mutations), CHUNK_SIZE):
-                chunk = df_mutations.iloc[j:j + CHUNK_SIZE]
-
-                with lock:
-                    chunk.to_csv(
-                        OUTPUT_FILE,
-                        mode='a',
-                        index=False,
-                        header=primeira_escrita_flag[0]
-                    )
-                    if primeira_escrita_flag[0]:
-                        primeira_escrita_flag[0] = False
-            print(f"[OK] Dados de {aligned_file} gravados.")
+        df = processar_sequencias(aligned_file)
+        if not df.empty:
+            os.makedirs(TMP_DIR, exist_ok=True)
+            tmp_file = os.path.join(TMP_DIR, f"mutacoes_{i}.csv")
+            df.to_csv(tmp_file, index=False)
+            print(f"[OK] {aligned_file} processado.")
         else:
             print(f"[OK] Nenhuma mutação em {aligned_file}.")
     except Exception as e:
-        print(f"[ERRO] Falha ao processar {aligned_file}: {e}")
+        print(f"[ERRO] {aligned_file}: {e}")
+
+
+def consolidar_csv():
+    try:
+        all_files = [
+            f for f in os.listdir(TMP_DIR)
+            if f.endswith(".csv")
+        ]
+        random.shuffle(all_files)
+
+        print(f"Consolidando arquivos em {OUTPUT_FILE}...")
+        with open(OUTPUT_FILE, "w", encoding="utf-8") as out_f:
+            first = True
+            total_size = 0
+
+            for f_name in all_files:
+                file_path = os.path.join(TMP_DIR, f_name)
+                try:
+                    df = pd.read_csv(file_path)
+
+                    # Estimar tamanho do DataFrame em bytes (conservador)
+                    est_size = df.memory_usage(deep=True).sum()
+                    if total_size + est_size >= MAX_OUTPUT_SIZE:
+                        print(f"[INTERROMPIDO] Inclusão de '{f_name}' excederia o limite de {MAX_OUTPUT_SIZE} bytes.")
+                        break
+
+                    # Escreve cabeçalho apenas na primeira vez
+                    df.to_csv(out_f, header=first, index=False, mode='a')
+                    out_f.flush()
+                    total_size = os.path.getsize(OUTPUT_FILE)
+                    first = False
+                except Exception as e:
+                    print(f"[ERRO] Ao processar '{f_name}': {e}")
+
+        print(f"[FINALIZADO] Mutações salvas em '{OUTPUT_FILE}'.")
+
+    except Exception as e:
+        print(f"[FALHA GERAL] Erro ao consolidar arquivos: {e}")
 
 
 def main():
     if os.path.exists(OUTPUT_FILE):
         os.remove(OUTPUT_FILE)
+    if os.path.exists(TMP_DIR):
+        for f in os.listdir(TMP_DIR):
+            os.remove(os.path.join(TMP_DIR, f))
+    else:
+        os.makedirs(TMP_DIR)
 
-    manager = Manager()
-    l = Lock()
-    flag = manager.list([True])
-
-    aligned_files = sorted([
+    aligned_files = [
         f for f in os.listdir(PATH)
         if f.startswith("aligned_") and f.endswith(".fasta")
-    ])
-    num_files = len(aligned_files)
+    ]
+    indices = list(range(len(aligned_files)))
 
-    with Pool(processes=os.cpu_count(), initializer=init_worker, initargs=(l, flag)) as pool:
-        pool.map(processar_e_salvar, range(num_files))
+    with Pool(cpu_count()) as pool:
+        pool.map(processar_e_salvar, indices)
 
-
-    print(f"[FINALIZADO] Mutações salvas em '{OUTPUT_FILE}'.")
+    consolidar_csv()
 
 
 if __name__ == "__main__":

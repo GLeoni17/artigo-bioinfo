@@ -6,7 +6,7 @@ from concurrent.futures import ProcessPoolExecutor
 INPUT_FASTA = "sars_cov2_sequences.fasta"
 REF_FASTA = "wuhan_reference.fasta"
 OUTPUT_DIR = "mafft_alinhado_auto"
-BLOCK_SIZE = 50
+BLOCK_SIZE = 100
 N_THREADS = 12
 
 ALL_SEQUENCES = list(SeqIO.parse(INPUT_FASTA, "fasta"))
