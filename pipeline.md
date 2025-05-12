@@ -6,7 +6,7 @@
 
 ```mutation_identification.py``` (compara variantes com a referência e salva as mutações)
 
-```extrair_features.py``` (extrai features com base nos metadados e informações de mutações)
+```extrair_features.py``` (extrai features dos hotspots de mutações com base nos metadados e informações de mutações)
 
 ```aplicar_modelos.py``` (aplica e avalia modelos de IA sobre as features)
 
