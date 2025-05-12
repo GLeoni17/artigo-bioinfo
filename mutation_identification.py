@@ -1,7 +1,6 @@
-from multiprocessing import Manager, Lock
+from multiprocessing import Manager, Lock, Pool
 from Bio import SeqIO
 import pandas as pd
-from joblib import Parallel, delayed
 import os
 
 # Configurações
@@ -9,6 +8,15 @@ OUTPUT_FILE = "mutacoes.csv"
 PATH = "mafft_alinhado_auto/"
 REF_SEQ = str(SeqIO.read("wuhan_reference.fasta", "fasta").seq)
 CHUNK_SIZE = 250_000
+
+lock = None
+primeira_escrita_flag = None
+
+
+def init_worker(l, flag):
+    global lock, primeira_escrita_flag
+    lock = l
+    primeira_escrita_flag = flag
 
 
 def extrai_mutacoes(seq, ref_seq):
@@ -35,7 +43,6 @@ def processar_sequencias(aligned_file):
             continue
 
         mutations = extrai_mutacoes(str(record.seq), REF_SEQ)
-
         for mutation in mutations:
             mutation_data.append({
                 "seq_id": record.id,
@@ -47,26 +54,27 @@ def processar_sequencias(aligned_file):
     return pd.DataFrame(mutation_data)
 
 
-def processar_e_salvar(i, lock, primeira_escrita):
+def processar_e_salvar(i):
     aligned_file = f"aligned_{i}.fasta"
 
     try:
-        df = processar_sequencias(aligned_file)
-        if df.empty:
-            return
+        df_mutations = processar_sequencias(aligned_file)
+        if not df_mutations.empty:
+            for j in range(0, len(df_mutations), CHUNK_SIZE):
+                chunk = df_mutations.iloc[j:j + CHUNK_SIZE]
 
-        for j in range(0, len(df), CHUNK_SIZE):
-            chunk = df.iloc[j:j + CHUNK_SIZE]
-
-            with lock:
-                header = False
-                if primeira_escrita["value"]:
-                    header = True
-                    primeira_escrita["value"] = False
-
-                chunk.to_csv(OUTPUT_FILE, mode='a', index=False, header=header)
-
-        print(f"[OK] {aligned_file} processado e salvo.")
+                with lock:
+                    chunk.to_csv(
+                        OUTPUT_FILE,
+                        mode='a',
+                        index=False,
+                        header=primeira_escrita_flag[0]
+                    )
+                    if primeira_escrita_flag[0]:
+                        primeira_escrita_flag[0] = False
+            print(f"[OK] Dados de {aligned_file} gravados.")
+        else:
+            print(f"[OK] Nenhuma mutação em {aligned_file}.")
     except Exception as e:
         print(f"[ERRO] Falha ao processar {aligned_file}: {e}")
 
@@ -76,26 +84,20 @@ def main():
         os.remove(OUTPUT_FILE)
 
     manager = Manager()
-    lock = Lock()
-    primeira_escrita = manager.dict()
-    primeira_escrita["value"] = True
+    l = Lock()
+    flag = manager.list([True])
 
-    arquivos_indices = [
-        int(f.split('_')[1].split('.')[0])  # extrai índice do nome
-        for f in os.listdir(PATH)
+    aligned_files = sorted([
+        f for f in os.listdir(PATH)
         if f.startswith("aligned_") and f.endswith(".fasta")
-    ]
-    max_idx = max(arquivos_indices, default=-1)
-    if max_idx < 0:
-        print("Nenhum arquivo 'aligned_*.fasta' encontrado.")
-        return
+    ])
+    num_files = len(aligned_files)
 
-    Parallel(n_jobs=-2)(
-        delayed(processar_e_salvar)(i, lock, primeira_escrita)
-        for i in range(max_idx + 1)
-    )
+    with Pool(processes=os.cpu_count(), initializer=init_worker, initargs=(l, flag)) as pool:
+        pool.map(processar_e_salvar, range(num_files))
 
-    print(f"Mutações salvas em '{OUTPUT_FILE}'.")
+
+    print(f"[FINALIZADO] Mutações salvas em '{OUTPUT_FILE}'.")
 
 
 if __name__ == "__main__":
