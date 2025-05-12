@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Ambiente virtual para execução ---------------------------------------------------------------------------------------
-ENV_NAME="meu_ambiente"
+ENV_NAME="bioinfo"
 ENV_FILE="environment.yml"
 
 if ! conda info --envs | grep -q "$ENV_NAME"; then
