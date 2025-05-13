@@ -22,7 +22,6 @@ def gerar_relatorios(y_test, predictions, unique_classes, target_names):
     ).transpose()
     report.loc["accuracy", ["precision", "recall", "support"]] = np.nan
     report = report.round(5).fillna("")
-    report["support"] = report["support"].astype(int)
 
     metricas_globais = report.loc[["accuracy", "macro avg", "weighted avg"]]
     metricas_classes = report.drop(index=["accuracy", "macro avg", "weighted avg"])
@@ -115,14 +114,14 @@ def get_names_and_classes(predictions, y_test):
     return target_names, unique_classes
 
 
-def aplicar_modelo(model_class, param_grid, X_train, y_train, X_test, y_test):
-    model_name = model_class.__name__
+def aplicar_modelo(model, param_grid, X_train, y_train, X_test, y_test):
+    model_name = model.__class__.__name__
     os.makedirs("./metrics", exist_ok=True)
 
     print(f"Iniciando GridSearchCV para {model_name}...")
 
     grid_search = GridSearchCV(
-        estimator=model_class(),
+        estimator=model,
         param_grid=param_grid,
         scoring=custom_f1_macro,
         cv=5,
@@ -164,8 +163,11 @@ def aplicar_random_forest(X_train, y_train, X_test, y_test):
         'min_samples_split': [2, 5]
     }
 
-    report_full, predictions, best_params, best_model = aplicar_modelo(RandomForestClassifier, param_grid,
-                                                                       X_train, y_train, X_test, y_test)
+    report_full, predictions, best_params, best_model = aplicar_modelo(
+        RandomForestClassifier(class_weight='balanced', random_state=42, n_jobs=-1),
+        param_grid,
+        X_train, y_train, X_test, y_test
+    )
 
     # Salvar importâncias das features
     print("Salvando importâncias das features...")
@@ -181,19 +183,27 @@ def aplicar_random_forest(X_train, y_train, X_test, y_test):
 
 def aplicar_knn(X_train, y_train, X_test, y_test):
     param_grid = {
-        'n_neighbors': [3, 5, 10],
+        'n_neighbors': [5, 10, 15, 20],
         'weights': ['uniform', 'distance']
     }
-    return aplicar_modelo(KNeighborsClassifier, param_grid, X_train, y_train, X_test, y_test)
+    return aplicar_modelo(
+        KNeighborsClassifier(n_jobs=-1),
+        param_grid,
+        X_train, y_train, X_test, y_test
+    )
 
 
 def aplicar_svm(X_train, y_train, X_test, y_test):
     param_grid = {
         'kernel': ['linear', 'poly', 'rbf'],
-        'C': [0.1, 1, 10],
+        'C': [1, 10, 50, 100],
         'degree': [2, 3, 5]  # Apenas afeta kernel='poly'
     }
-    return aplicar_modelo(SVC, param_grid, X_train, y_train, X_test, y_test)
+    return aplicar_modelo(
+        SVC(class_weight="balanced", random_state=42),
+        param_grid,
+        X_train, y_train, X_test, y_test
+    )
 
 
 # teste do funcionamento
