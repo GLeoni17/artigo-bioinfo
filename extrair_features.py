@@ -12,7 +12,7 @@ MUTACOES_CSV = "mutacoes.csv"
 METADADOS_CSV = "metadados.csv"
 TEMP_DIR = "features_temp"
 TOP_N = 500
-FREQ_MIN = 0.2
+FREQ_MIN = 0.25
 FREQ_MAX = 0.9
 OUTPUT_X = "X_features.csv"
 OUTPUT_Y = "y_labels.csv"
@@ -32,15 +32,10 @@ def processar_chunk(args):
         if df.empty:
             return None
 
-        # Expandir casos com múltiplas mutações (ex: C,T -> duas linhas)
-        df["mut_base"] = df["mut_base"].str.split(",")
-        df = df.explode("mut_base")
-
-        df = df[df["mut_base"].isin(["A", "T", "C", "G"])]
-        df["feature"] = df["position"] + "_" + df["mut_base"]
         df["valor"] = 1
 
-        crosstab = pd.crosstab(df["seq_id"], df["feature"])
+        crosstab = pd.crosstab(df["seq_id"], df["position"])
+        crosstab.columns = [f"pos_{col}" for col in crosstab.columns]
         output_path = os.path.join(TEMP_DIR, f"crosstab_{index}.csv")
         crosstab.to_csv(output_path)
         return output_path
@@ -49,8 +44,11 @@ def processar_chunk(args):
         return None
 
 
-def selecionar_posicoes(seq_ids_unicos):
+def selecionar_posicoes():
+    print("Selecionando posições hotspot por frequência...")
+
     posicao_contagem = defaultdict(set)
+    seq_ids_unicos = set()
 
     for chunk in pd.read_csv(MUTACOES_CSV, chunksize=CHUNKSIZE):
         chunk = chunk.dropna(subset=["seq_id", "position"])
@@ -65,13 +63,17 @@ def selecionar_posicoes(seq_ids_unicos):
     freq = {pos: len(seq_ids) / total_seq for pos, seq_ids in posicao_contagem.items()}
     freq_df = pd.Series(freq)
     posicoes = freq_df[(freq_df >= FREQ_MIN) & (freq_df <= FREQ_MAX)]
-    return posicoes.sort_values(ascending=False).head(TOP_N).index.tolist()
+    posicoes = posicoes.sort_values(ascending=False).head(TOP_N).index.tolist()
+    print(f"{len(posicoes)} posições selecionadas.")
+
+    return matriz_crosstab(posicoes)
 
 
 def matriz_crosstab(posicoes_selecionadas):
     os.makedirs(TEMP_DIR, exist_ok=True)
     temp_chunk_dir = tempfile.mkdtemp()
 
+    print("Dividindo mutações em chunks...")
     chunk_paths = []
     for i, chunk in enumerate(pd.read_csv(MUTACOES_CSV, chunksize=CHUNKSIZE)):
         chunk_file = os.path.join(temp_chunk_dir, f"chunk_{i}.csv")
@@ -109,15 +111,9 @@ def codificar_labels(y_series):
     encoder = LabelEncoder()
     y_encoded = encoder.fit_transform(y_series)
     print(f"Rótulos codificados: {len(set(y_encoded))} classes.")
-    return pd.DataFrame(y_encoded, columns=["classe"])
 
-
-def selecionar_top_posicoes():
-    print("Selecionando posições hotspot por frequência...")
-    seq_ids_unicos = set()
-    posicoes = selecionar_posicoes(seq_ids_unicos)
-    print(f"{len(posicoes)} posições selecionadas.")
-    return matriz_crosstab(posicoes)
+    data = {"classe" : y_encoded, "nome" : y_series}
+    return pd.DataFrame(data=data)
 
 
 def main():
@@ -125,7 +121,7 @@ def main():
         print("[ERRO] Arquivos de entrada não encontrados.")
         sys.exit(1)
 
-    df_features = selecionar_top_posicoes()
+    df_features = selecionar_posicoes()
     df_labels = carregar_labels()
 
     print("Combinando features com rótulos...")
