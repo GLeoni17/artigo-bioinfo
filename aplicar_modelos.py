@@ -10,15 +10,14 @@ if __name__ == "__main__":
 
     # 1. Carrega os dados
     X = pd.read_csv(X_CSV)
-    y = pd.read_csv(Y_CSV).values.ravel()  # vetor 1D
+    y = pd.read_csv(Y_CSV)
 
     # Conta quantas vezes cada classe aparece
-    counts = pd.Series(y).value_counts()
+    counts = pd.Series(y["classe"]).value_counts()
 
-    # Filtra apenas classes com pelo menos 5 instâncias
-    valid_classes = counts[counts >= 5].index
-    mask = pd.Series(y).isin(valid_classes)
-
+    # Filtra apenas classes com pelo menos 10 instâncias
+    valid_classes = counts[counts >= 10].index
+    mask = pd.Series(y["classe"], index=X.index).isin(valid_classes)
     X = X[mask]
     y = y[mask]
 

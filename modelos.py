@@ -1,45 +1,42 @@
 import os
+from sklearn.model_selection import GridSearchCV, ParameterGrid
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.svm import SVC
-from sklearn.metrics import classification_report, ConfusionMatrixDisplay, make_scorer, f1_score
+from sklearn.metrics import classification_report, ConfusionMatrixDisplay, f1_score
 import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
-from contextlib import contextmanager
-from joblib import parallel_backend
-from tqdm import tqdm
-import joblib
 
 
-@contextmanager
-def tqdm_joblib(tqdm_object):
-    class TqdmBatchCompletionCallback(joblib.parallel.BatchCompletionCallBack):
-        def __call__(self, *args, **kwargs):
-            tqdm_object.update(n=self.batch_size)
-            return super().__call__(*args, **kwargs)
-
-    old_callback = joblib.parallel.BatchCompletionCallBack
-    joblib.parallel.BatchCompletionCallBack = TqdmBatchCompletionCallback
-    try:
-        yield
-    finally:
-        joblib.parallel.BatchCompletionCallBack = old_callback
-        tqdm_object.close()
-
-
-def gerar_relatorios(y_test, predictions):
-    report = pd.DataFrame(classification_report(y_test, predictions, output_dict=True, zero_division=0)).transpose()
+def gerar_relatorios(y_test, predictions, unique_classes, target_names):
+    report = pd.DataFrame(
+        classification_report(
+            y_test["classe"],
+            predictions,
+            output_dict=True,
+            zero_division=0,
+            labels=unique_classes,
+            target_names=target_names
+        )
+    ).transpose()
     report.loc["accuracy", ["precision", "recall", "support"]] = np.nan
     report = report.round(5).fillna("")
+    report["support"] = report["support"].astype(int)
 
     metricas_globais = report.loc[["accuracy", "macro avg", "weighted avg"]]
     metricas_classes = report.drop(index=["accuracy", "macro avg", "weighted avg"])
     return report, metricas_classes, metricas_globais
 
 
-def salvar_tabela_como_imagem(df, path):
-    fig, ax = plt.subplots()
+def salvar_tabela_como_imagem(df, path, table_name):
+    n_rows = len(df)
+    n_cols = len(df.columns) + 1  # +1 para os índices
+    cell_height = 0.3
+    fig_height = max(3, round(n_rows * cell_height))
+    fig_width = max(6, round(n_cols * 1.2))
+
+    fig, ax = plt.subplots(figsize=(fig_width, fig_height))
     ax.axis("off")
 
     table_data = [[idx] + list(row) for idx, row in df.iterrows()]
@@ -67,24 +64,55 @@ def salvar_tabela_como_imagem(df, path):
     for col_idx in range(len(column_labels)):
         table.auto_set_column_width(col=col_idx)
 
-    fig.subplots_adjust(left=0.01, right=0.99, top=0.99, bottom=0.01)
-    plt.savefig(path, bbox_inches='tight', pad_inches=0.0)
+    fig.suptitle(table_name, fontsize=16, weight='bold', y=1.02)
+    fig.subplots_adjust(left=0.01, right=0.99, top=0.95, bottom=0.01)
+    plt.savefig(path, bbox_inches='tight', pad_inches=0.2)
     plt.close()
 
 
-def salvar_matriz_confusao(y_test, predictions, y_labels, model_name):
-    fig, ax = plt.subplots(figsize=(8, 6))
+def salvar_matriz_confusao(y_test, predictions, unique_classes, target_names, model_name):
+    num_classes = len(unique_classes)
+    fig_width = max(6, round(num_classes * 0.6))
+    fig_height = max(5, round(num_classes * 0.5))
+
+    fig, ax = plt.subplots(figsize=(fig_width, fig_height))
     ConfusionMatrixDisplay.from_predictions(
-        y_test, predictions,
-        labels=np.unique(y_labels),
+        y_test["classe"], predictions,
+        labels=unique_classes,
+        display_labels=target_names,
         cmap='Blues',
         ax=ax
     )
     ax.set_title(f"Matriz de Confusão - {model_name}")
     plt.tight_layout()
-    path = f"./metrics/{model_name}-matriz_confusao.png"
+    path = f"./metrics/{model_name}_matriz-confusao.png"
     plt.savefig(path, bbox_inches='tight')
     plt.close()
+
+
+def custom_f1_macro(estimator, X, y):
+    try:
+        y_pred = estimator.predict(X)
+        return f1_score(y, y_pred, average='macro', zero_division=0)
+    except Exception as e:
+        print(f"Erro ao calcular F1 score: {e}")
+        return 0.0
+
+
+def salva_melhores_parametros(best_params, model_name):
+    print(f"Melhores parâmetros para {model_name}: {best_params}")
+    best_params_path = f"./metrics/{model_name}_melhores-parametros.csv"
+    best_params_df = pd.DataFrame([best_params])
+    best_params_df.to_csv(best_params_path, index=False)
+
+
+def get_names_and_classes(predictions, y_test):
+    unique_classes = np.union1d(np.unique(y_test["classe"]), np.unique(predictions))
+    class_to_name = {}
+    for classe, nome in zip(y_test["classe"], y_test["nome"]):
+        class_to_name[classe] = nome
+    target_names = [class_to_name.get(cls, f"Classe {cls}") for cls in unique_classes]
+    return target_names, unique_classes
 
 
 def aplicar_modelo(model_class, param_grid, X_train, y_train, X_test, y_test):
@@ -93,43 +121,40 @@ def aplicar_modelo(model_class, param_grid, X_train, y_train, X_test, y_test):
 
     print(f"Iniciando GridSearchCV para {model_name}...")
 
-    # Busca pelo melhor modelo com base no F1-score macro
     grid_search = GridSearchCV(
         estimator=model_class(),
         param_grid=param_grid,
-        scoring=make_scorer(f1_score, average='macro'),
+        scoring=custom_f1_macro,
         cv=5,
-        n_jobs=-1
+        n_jobs=-1,
+        verbose=1
     )
-
-    total_comb = len(ParameterGrid(param_grid))
-    with tqdm_joblib(tqdm(desc=f"GridSearch {model_name}", total=total_comb)) as _:
-        with parallel_backend('loky'):
-            grid_search.fit(X_train, y_train)
-
+    grid_search.fit(X_train, y_train["classe"] if isinstance(y_train, pd.DataFrame) else y_train)
     best_model = grid_search.best_estimator_
 
-    print(f"Melhores parâmetros para {model_name}: {grid_search.best_params_}")
+    # Salvar os melhores parâmetros em CSV
+    salva_melhores_parametros(grid_search.best_params_, model_name)
 
     predictions = best_model.predict(X_test)
 
-    # Gerar relatórios
-    report_full, metricas_classes, metricas_globais = gerar_relatorios(y_test, predictions)
+    target_names, unique_classes = get_names_and_classes(predictions, y_test)
+
+    report_full, metricas_classes, metricas_globais = gerar_relatorios(y_test, predictions, unique_classes, target_names)
 
     # Salvar CSV e imagem das métricas por classe
-    path_classes_csv = f"./metrics/{model_name}_metricas_por_classe.csv"
+    path_classes_csv = f"./metrics/{model_name}_metricas-por-classe.csv"
     metricas_classes.to_csv(path_classes_csv)
-    salvar_tabela_como_imagem(metricas_classes, path_classes_csv.replace(".csv", ".png"))
+    salvar_tabela_como_imagem(metricas_classes, path_classes_csv.replace(".csv", ".png"), f"Métricas por classe - {model_name}")
 
     # Salvar CSV e imagem das métricas globais
-    path_globais_csv = f"./metrics/{model_name}_metricas_globais.csv"
+    path_globais_csv = f"./metrics/{model_name}_metricas-globais.csv"
     metricas_globais.to_csv(path_globais_csv)
-    salvar_tabela_como_imagem(metricas_globais, path_globais_csv.replace(".csv", ".png"))
+    salvar_tabela_como_imagem(metricas_globais, path_globais_csv.replace(".csv", ".png"), f"Métricas globais - {model_name}")
 
     # Salvar matriz de confusão
-    salvar_matriz_confusao(y_test, predictions, y_train, model_name)
+    salvar_matriz_confusao(y_test, predictions, unique_classes, target_names, model_name)
 
-    return report_full, predictions, grid_search.best_params_
+    return report_full, predictions, grid_search.best_params_, best_model
 
 
 def aplicar_random_forest(X_train, y_train, X_test, y_test):
@@ -138,7 +163,20 @@ def aplicar_random_forest(X_train, y_train, X_test, y_test):
         'max_depth': [None, 10, 20],
         'min_samples_split': [2, 5]
     }
-    return aplicar_modelo(RandomForestClassifier, param_grid, X_train, y_train, X_test, y_test)
+
+    report_full, predictions, best_params, best_model = aplicar_modelo(RandomForestClassifier, param_grid,
+                                                                       X_train, y_train, X_test, y_test)
+
+    # Salvar importâncias das features
+    print("Salvando importâncias das features...")
+    importancias = pd.Series(best_model.feature_importances_, index=X_train.columns)
+    importancias = importancias.sort_values(ascending=False)
+
+    path_importancias = "./metrics/RandomForestClassifier_importancias.csv"
+    importancias.to_csv(path_importancias, header=["importance"])
+    print(f"Importâncias salvas em: {path_importancias}")
+
+    return report_full, predictions, best_params, best_model
 
 
 def aplicar_knn(X_train, y_train, X_test, y_test):
