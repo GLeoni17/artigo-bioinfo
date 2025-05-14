@@ -1,13 +1,12 @@
+import pandas as pd
+from sklearn.model_selection import train_test_split
+
+from modelos import aplicar_random_forest, aplicar_knn, aplicar_svm
+
+X_CSV = "X_features.csv"
+Y_CSV = "y_labels.csv"
+
 if __name__ == "__main__":
-    import pandas as pd
-    from sklearn.model_selection import train_test_split
-
-    from modelos import aplicar_random_forest, aplicar_knn, aplicar_svm
-
-    # Caminhos
-    X_CSV = "X_features.csv"
-    Y_CSV = "y_labels.csv"
-
     # 1. Carrega os dados
     X = pd.read_csv(X_CSV)
     y = pd.read_csv(Y_CSV)
