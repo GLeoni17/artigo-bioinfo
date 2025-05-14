@@ -2,7 +2,7 @@
 
 ```fragment_mafft.py``` (faz o alinhamento de cada uma das variantes com a referência, com MAFFT)
 
-```padroniza_paises.py``` (padroniza os metadados)
+```padroniza_paises.py``` (DESCONTINUADO)
 
 ```mutation_identification.py``` (compara variantes com a referência e salva as mutações)
 

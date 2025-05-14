@@ -4,7 +4,6 @@ import time
 
 Entrez.email = "lahed97318@apklamp.com"
 
-
 def obter_pais_por_id(genbank_id):
     try:
         handle = Entrez.efetch(db="nucleotide", id=genbank_id, rettype="gb", retmode="text")

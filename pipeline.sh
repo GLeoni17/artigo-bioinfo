@@ -29,16 +29,17 @@ python get_dataset.py
 printf "\nEtapa 2: Alinhando variantes com referência usando MAFFT..."
 python fragment_mafft.py
 
-printf "\nEtapa 3: Padronizando nomes de países nos metadados..."
-python padroniza_paises.py
+# Já esta pegando os paises no get_dataset.py
+#printf "\nEtapa 3: Padronizando nomes de países nos metadados..."
+#python padroniza_paises.py
 
-printf "\nEtapa 4: Identificando mutações nas variantes..."
+printf "\nEtapa 3: Identificando mutações nas variantes..."
 python mutation_identification.py
 
-printf "\nEtapa 5: Extraindo features a partir de metadados e mutações..."
+printf "\nEtapa 4: Extraindo features a partir de metadados e mutações..."
 python extrair_features.py
 
-printf "\nEtapa 6: Aplicando e avaliando modelos de IA..."
+printf "\nEtapa 5: Aplicando e avaliando modelos de IA..."
 python aplicar_modelos.py
 
 printf "\nPipeline finalizado com sucesso."
