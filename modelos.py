@@ -1,9 +1,11 @@
 import os
 from sklearn.model_selection import GridSearchCV, ParameterGrid
 from sklearn.ensemble import RandomForestClassifier
+from sklearn.tree import plot_tree
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.svm import SVC
 from sklearn.metrics import classification_report, ConfusionMatrixDisplay, f1_score
+import seaborn as sns
 import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
@@ -80,9 +82,13 @@ def salvar_matriz_confusao(y_test, predictions, unique_classes, target_names, mo
         labels=unique_classes,
         display_labels=target_names,
         cmap='Blues',
-        ax=ax
+        ax=ax,
+        normalize='all',
+        xticks_rotation='vertical',
     )
     ax.set_title(f"Matriz de Confusão - {model_name}")
+    ax.set_xlabel("Classe Verdadeira")
+    ax.set_ylabel("Classe Predita")
     plt.tight_layout()
     path = f"./metrics/{model_name}_matriz-confusao.png"
     plt.savefig(path, bbox_inches='tight')
@@ -103,6 +109,63 @@ def salva_melhores_parametros(best_params, model_name):
     best_params_path = f"./metrics/{model_name}_melhores-parametros.csv"
     best_params_df = pd.DataFrame([best_params])
     best_params_df.to_csv(best_params_path, index=False)
+
+
+def plotar_metricas_gridsearch(grid_search, model_name):
+    results = pd.DataFrame(grid_search.cv_results_)
+    score_col = "mean_test_score"
+    param_cols = [col for col in results.columns if col.startswith("param_")]
+
+    # Tenta escolher 2 parâmetros principais
+    principais = param_cols[:2] if len(param_cols) >= 2 else param_cols
+
+    plt.figure(figsize=(10, 6))
+
+    if len(principais) == 1:
+        ax = sns.boxplot(data=results, x=principais[0], y=score_col)
+    elif len(principais) >= 2:
+        ax = sns.scatterplot(
+            data=results,
+            x=principais[0],
+            y=score_col,
+            hue=principais[1],
+            palette="viridis",
+            s=100
+        )
+    else:
+        print("Nenhum hiperparâmetro detectado para plotagem.")
+        return
+
+    # Localizar e destacar o melhor ponto
+    best_idx = results[score_col].idxmax()
+    best_row = results.loc[best_idx]
+    x_best = best_row[principais[0]]
+    y_best = best_row[score_col]
+
+    if len(principais) >= 2:
+        ax.scatter(x_best, y_best, color='red', marker='*', s=200, edgecolor='black', label='Melhor desempenho')
+        ax.annotate(f"{y_best:.5f}", (x_best, y_best), textcoords="offset points", xytext=(0, 10), ha='center',
+                    fontsize=9, color='red')
+    else:
+        ax.scatter(x_best, y_best, color='red', marker='*', s=200, edgecolor='black', label='Melhor desempenho')
+        ax.annotate(f"{y_best:.5f}", (x_best, y_best), textcoords="offset points", xytext=(0, 10), ha='center',
+                    fontsize=9, color='red')
+
+    # Título e eixos
+    plt.title(f"F1-score (macro) por combinação de hiperparâmetros - {model_name}", fontsize=14)
+    plt.ylabel("F1-score macro) (média de validação cruzada)")
+    plt.xlabel(principais[0].replace("param_", "").capitalize())
+    if len(principais) >= 2:
+        plt.legend(title=principais[1].replace("param_", "").capitalize(), loc='lower right')
+    else:
+        plt.legend(loc='lower right')
+    plt.xticks(rotation=45)
+    plt.tight_layout()
+
+    path = f"./metrics/{model_name}_gridsearch_metricas.png"
+    plt.savefig(path, bbox_inches='tight')
+    plt.close()
+    print(f"Gráfico de métricas do GridSearch salvo em: {path}")
 
 
 def get_names_and_classes(predictions, y_test):
@@ -129,6 +192,9 @@ def aplicar_modelo(model, param_grid, X_train, y_train, X_test, y_test):
         verbose=1
     )
     grid_search.fit(X_train, y_train["classe"] if isinstance(y_train, pd.DataFrame) else y_train)
+
+    # Fazer um gráfico com a relação entre os hiperparâmetros e as métricas
+    plotar_metricas_gridsearch(grid_search, model_name)
     best_model = grid_search.best_estimator_
 
     # Salvar os melhores parâmetros em CSV
@@ -138,17 +204,20 @@ def aplicar_modelo(model, param_grid, X_train, y_train, X_test, y_test):
 
     target_names, unique_classes = get_names_and_classes(predictions, y_test)
 
-    report_full, metricas_classes, metricas_globais = gerar_relatorios(y_test, predictions, unique_classes, target_names)
+    report_full, metricas_classes, metricas_globais = gerar_relatorios(y_test, predictions, unique_classes,
+                                                                       target_names)
 
     # Salvar CSV e imagem das métricas por classe
     path_classes_csv = f"./metrics/{model_name}_metricas-por-classe.csv"
     metricas_classes.to_csv(path_classes_csv)
-    salvar_tabela_como_imagem(metricas_classes, path_classes_csv.replace(".csv", ".png"), f"Métricas por classe - {model_name}")
+    salvar_tabela_como_imagem(metricas_classes, path_classes_csv.replace(".csv", ".png"),
+                              f"Métricas por classe - {model_name}")
 
     # Salvar CSV e imagem das métricas globais
     path_globais_csv = f"./metrics/{model_name}_metricas-globais.csv"
     metricas_globais.to_csv(path_globais_csv)
-    salvar_tabela_como_imagem(metricas_globais, path_globais_csv.replace(".csv", ".png"), f"Métricas globais - {model_name}")
+    salvar_tabela_como_imagem(metricas_globais, path_globais_csv.replace(".csv", ".png"),
+                              f"Métricas globais - {model_name}")
 
     # Salvar matriz de confusão
     salvar_matriz_confusao(y_test, predictions, unique_classes, target_names, model_name)
@@ -159,8 +228,8 @@ def aplicar_modelo(model, param_grid, X_train, y_train, X_test, y_test):
 def aplicar_random_forest(X_train, y_train, X_test, y_test):
     param_grid = {
         'n_estimators': [100, 300, 500],
-        'max_depth': [None, 10, 20],
-        'min_samples_split': [2, 5]
+        'max_depth': [10, 20, None],
+        'min_samples_split': [2, 5, 7]
     }
 
     report_full, predictions, best_params, best_model = aplicar_modelo(
@@ -178,12 +247,35 @@ def aplicar_random_forest(X_train, y_train, X_test, y_test):
     importancias.to_csv(path_importancias, header=["importance"])
     print(f"Importâncias salvas em: {path_importancias}")
 
+    # Salvar uma árvore como exemplo
+    print("Salvando imagem de uma árvore da floresta...")
+    exemplo_arvore = best_model.estimators_[0]
+
+    class_names = [str(cls) for cls in best_model.classes_]
+    fig, ax = plt.subplots(figsize=(32, 16))  # tamanho grande para legibilidade
+    plot_tree(
+        exemplo_arvore,
+        feature_names=X_train.columns,
+        class_names=class_names,
+        filled=True,
+        rounded=True,
+        impurity=False,
+        fontsize=10,
+        ax=ax
+    )
+
+    path_arvore = "./metrics/RandomForestClassifier_exemplo_arvore.png"
+    plt.tight_layout()
+    plt.savefig(path_arvore, dpi=200)
+    plt.close()
+    print(f"Imagem da árvore salva em: {path_arvore}")
+
     return report_full, predictions, best_params, best_model
 
 
 def aplicar_knn(X_train, y_train, X_test, y_test):
     param_grid = {
-        'n_neighbors': [5, 10, 15, 20],
+        'n_neighbors': [5, 10, 15],
         'weights': ['uniform', 'distance']
     }
     return aplicar_modelo(
@@ -196,7 +288,7 @@ def aplicar_knn(X_train, y_train, X_test, y_test):
 def aplicar_svm(X_train, y_train, X_test, y_test):
     param_grid = {
         'kernel': ['linear', 'poly', 'rbf'],
-        'C': [1, 10, 50, 100],
+        'C': [10, 50, 100],
         'degree': [2, 3, 5]  # Apenas afeta kernel='poly'
     }
     return aplicar_modelo(
@@ -204,33 +296,3 @@ def aplicar_svm(X_train, y_train, X_test, y_test):
         param_grid,
         X_train, y_train, X_test, y_test
     )
-
-
-# teste do funcionamento
-if __name__ == '__main__':
-    from sklearn.model_selection import train_test_split, GridSearchCV, ParameterGrid
-    from sklearn.datasets import load_iris
-
-    ds_iris = load_iris()
-
-    df_iris = pd.DataFrame(ds_iris.data, columns=ds_iris.feature_names)
-
-    df_iris['target'] = [ds_iris.target_names[i] for i in ds_iris.target]
-
-    # Separar features (X) e rótulos (y)
-    X = df_iris.drop(columns='target')
-    y = df_iris['target']
-
-    # Dividir em treino e teste, estratificando pelas classes
-    X_train, X_test, y_train, y_test = train_test_split(
-        X, y,
-        test_size=0.2,
-        random_state=42,
-        stratify=y
-    )
-
-    aplicar_random_forest(X_train, y_train, X_test, y_test)
-
-    aplicar_knn(X_train, y_train, X_test, y_test)
-
-    aplicar_svm(X_train, y_train, X_test, y_test)
