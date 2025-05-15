@@ -116,6 +116,10 @@ def plotar_metricas_gridsearch(grid_search, model_name):
     score_col = "mean_test_score"
     param_cols = [col for col in results.columns if col.startswith("param_")]
 
+    # Substituir None por string para evitar erros de plotagem
+    for col in param_cols:
+        results[col] = results[col].apply(lambda x: str(x) if x is not None else "None")
+
     # Tenta escolher 2 parâmetros principais
     principais = param_cols[:2] if len(param_cols) >= 2 else param_cols
 
